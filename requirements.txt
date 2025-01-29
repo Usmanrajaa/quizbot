@@ -4,3 +4,5 @@ pdf2image
 Pillow
 python-dotenv
 google-generativeai
+poppler-utils
+tesseract-ocr
