@@ -6,7 +6,12 @@ import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 import tempfile
-import re  
+import re
+import pytesseract
+
+# Manually set the Tesseract OCR path (common location on Linux/Streamlit Cloud)
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+
 
 # Load Google API key from environment variable
 load_dotenv()
