@@ -1,29 +1,26 @@
-# Use an official Python runtime as the base image
-FROM python:3.9-slim
+# 1️⃣ Use an official lightweight Python image
+FROM python:3.9
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-
-# Install system dependencies (Tesseract and Poppler)
-RUN apt-get update && apt-get install -y \
-    tesseract-ocr \
-    poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set the working directory inside the container
+# 2️⃣ Set the working directory
 WORKDIR /app
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+# 3️⃣ Copy all files to the container
+COPY . /app/
 
-# Install Python dependencies
+# 4️⃣ Install system dependencies for Poppler and Tesseract
+RUN apt-get update && apt-get install -y \
+    poppler-utils \
+    tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
+
+# 5️⃣ Upgrade pip before installing dependencies
+RUN pip install --upgrade pip
+
+# 6️⃣ Install required Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
-COPY . .
-
-# Expose the port that Streamlit runs on
+# 7️⃣ Expose the Streamlit port
 EXPOSE 8501
 
-# Command to run the Streamlit app
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# 8️⃣ Run the correct Streamlit script (REPLACE HERE)
+CMD ["streamlit", "run", "quiz_deep.py", "--server.port=8501", "--server.address=0.0.0.0"]
