@@ -1,4 +1,8 @@
 import streamlit as st
+
+# ✅ MUST be the first Streamlit command!
+st.set_page_config(page_title="Quiz Generator", layout="wide")
+
 import pytesseract
 from pdf2image import convert_from_path
 from PIL import Image
@@ -23,15 +27,27 @@ genai.configure(api_key=GOOGLE_API_KEY)
 # ✅ Auto-detect Tesseract & Poppler paths
 if platform.system() == "Windows":
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    POPPLER_PATH = r"C:\poppler-24.08.0\Library\bin"
-else:  # Linux (Streamlit Cloud)
+    
+    # 🔥 NEW: Find correct Poppler path dynamically
+    POPPLER_PATHS = [
+        r"C:\poppler-24.08.0\Library\bin",
+        r"C:\Program Files\Release-24.08.0-0\poppler-24.08.0\Library\bin"
+    ]
+    
+    POPPLER_PATH = next((path for path in POPPLER_PATHS if os.path.exists(os.path.join(path, "pdftoppm.exe"))), None)
+
+else:  # Linux / Streamlit Cloud
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or "/usr/bin/tesseract"
     POPPLER_PATH = shutil.which("pdftoppm") or "/usr/bin"
 
 # ✅ Check if Poppler is properly installed
-if not POPPLER_PATH or not os.path.exists(POPPLER_PATH):
+if not POPPLER_PATH:
     st.error("⚠️ Poppler is not installed or not in PATH! Install Poppler and restart.")
     st.stop()
+
+# ✅ Debugging: Show detected paths in Streamlit sidebar
+st.sidebar.write(f"🔍 **Tesseract Path:** {pytesseract.pytesseract.tesseract_cmd}")
+st.sidebar.write(f"🔍 **Poppler Path:** {POPPLER_PATH}")
 
 # ✅ Function to extract text from images
 def extract_text_from_image(image):
@@ -103,7 +119,6 @@ def format_quiz(quiz_text):
     return quiz_data
 
 # ✅ Streamlit UI
-st.set_page_config(page_title="Quiz Generator", layout="wide")
 st.title("📝 Quiz Generator")
 st.markdown("Upload an image or PDF, and we'll generate a **structured quiz** for you!")
 
@@ -179,22 +194,10 @@ with right_column:
 
         # ✅ Display Quiz Results if submitted
         if st.session_state.quiz_submitted:
-            correct_count = 0
-            results = []
-            for i, question_data in enumerate(st.session_state.quiz_data):
-                user_answer = st.session_state.user_answers.get(i, None)
-                correct_answer = question_data['correct_answer']
-                
-                if user_answer == correct_answer:
-                    correct_count += 1
-                    results.append(f"✅ **Question {i+1}: Correct!**")
-                else:
-                    results.append(f"❌ **Question {i+1}: Incorrect.** The correct answer was **{correct_answer}**.")
-
-            st.markdown("### 📝 Quiz Results")
-            for result in results:
-                st.write(result)
-            st.write(f"**🎯 Total Score: {correct_count}/{len(st.session_state.quiz_data)}**")
+            correct_count = sum(
+                1 for i, q in enumerate(st.session_state.quiz_data) if st.session_state.user_answers[i] == q['correct_answer']
+            )
+            st.markdown(f"### 🎯 Your Score: **{correct_count}/{len(st.session_state.quiz_data)}**")
 
 # ✅ Footer
 st.markdown("---")
