@@ -7,6 +7,8 @@ import os
 import tempfile
 import re
 from dotenv import load_dotenv
+import platform
+import shutil
 
 # ✅ Load API Key from .env file
 load_dotenv()
@@ -19,16 +21,13 @@ if not GOOGLE_API_KEY:
 
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# ✅ Dynamic Poppler Path Detection
-if os.name == "nt":  # Windows
+# ✅ Auto-detect Tesseract & Poppler paths
+if platform.system() == "Windows":
     pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     POPPLER_PATH = r"C:\poppler-24.08.0\Library\bin"
-else:  # Linux/Streamlit Cloud
-    POPPLER_PATH = "/usr/bin"
-    if not os.path.exists(os.path.join(POPPLER_PATH, "pdftoppm")):
-        POPPLER_PATH = "/usr/local/bin"
-    if not os.path.exists(os.path.join(POPPLER_PATH, "pdftoppm")):
-        POPPLER_PATH = ""
+else:  # Linux (Streamlit Cloud)
+    pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or "/usr/bin/tesseract"
+    POPPLER_PATH = shutil.which("pdftoppm") or "/usr/bin"
 
 # ✅ Function to extract text from images
 def extract_text_from_image(image):
