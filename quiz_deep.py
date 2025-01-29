@@ -7,6 +7,10 @@ import os
 from dotenv import load_dotenv
 import tempfile
 import re  
+import pytesseract
+
+# Specify the Tesseract path explicitly
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
 # Load Google API key from environment variable
 load_dotenv()
