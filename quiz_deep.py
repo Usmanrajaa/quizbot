@@ -36,24 +36,20 @@ if platform.system() == "Windows":
     
     POPPLER_PATH = next((path for path in POPPLER_PATHS if os.path.exists(os.path.join(path, "pdftoppm.exe"))), None)
 
-else:  # Linux / Streamlit Cloud
+else:  # Linux / Railway
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or "/usr/bin/tesseract"
     POPPLER_PATH = shutil.which("pdftoppm") or "/usr/bin"
 
-# ✅ Check if Poppler is properly installed
 if not POPPLER_PATH:
     st.error("⚠️ Poppler is not installed or not in PATH! Install Poppler and restart.")
     st.stop()
 
-# ✅ Debugging: Show detected paths in Streamlit sidebar
 st.sidebar.write(f"🔍 **Tesseract Path:** {pytesseract.pytesseract.tesseract_cmd}")
 st.sidebar.write(f"🔍 **Poppler Path:** {POPPLER_PATH}")
 
-# ✅ Function to extract text from images
 def extract_text_from_image(image):
     return pytesseract.image_to_string(image)
 
-# ✅ Function to extract text from PDFs
 def extract_text_from_pdf(pdf_file):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
         temp_pdf.write(pdf_file.read())
@@ -70,7 +66,6 @@ def extract_text_from_pdf(pdf_file):
     os.remove(temp_pdf_path)
     return extracted_text.strip()
 
-# ✅ Function to generate a quiz using Google Gemini
 def generate_quiz(text, num_questions=5):
     prompt = f"""
     Generate {num_questions} multiple-choice questions (MCQs) based on the following text.
@@ -86,14 +81,11 @@ def generate_quiz(text, num_questions=5):
        c) [Option 3]
        d) [Option 4]
        Correct Answer: [Correct option]
-
-    Continue for all {num_questions} questions.
     """
     model = genai.GenerativeModel('gemini-1.5-flash')
     response = model.generate_content(prompt)
     return response.text
 
-# ✅ Function to format the quiz properly
 def format_quiz(quiz_text):
     questions = quiz_text.strip().split("\n\n")
     quiz_data = []
@@ -102,14 +94,11 @@ def format_quiz(quiz_text):
         lines = question.split("\n")
         if len(lines) < 3:
             continue
-
         question_text = re.sub(r"^(Question\s*\d+:?)\s*", "", lines[0]).strip()
         options = lines[1:-1]
         correct_answer = lines[-1].replace("Correct Answer: ", "").strip()
-
         while len(options) < 4:
-            options.append("")  
-
+            options.append("")
         quiz_data.append({
             "question": question_text,
             "options": [opt.strip() for opt in options],
@@ -118,28 +107,24 @@ def format_quiz(quiz_text):
     
     return quiz_data
 
-# ✅ Streamlit UI
 st.title("📝 Quiz Generator")
 st.markdown("Upload an image or PDF, and we'll generate a **structured quiz** for you!")
 
-# ✅ Initialize session state for quiz data
 if "quiz_data" not in st.session_state:
     st.session_state.quiz_data = None
 if "user_answers" not in st.session_state:
     st.session_state.user_answers = {}
 if "quiz_submitted" not in st.session_state:
-    st.session_state.quiz_submitted = False  # Track submission status
+    st.session_state.quiz_submitted = False
 
 left_column, right_column = st.columns([1, 2])
 
-# ✅ Left Column: File Upload and Extracted Text
 with left_column:
     st.markdown("### 📂 Upload File")
     uploaded_file = st.file_uploader("Choose an image or PDF file...", type=["jpg", "jpeg", "png", "pdf"])
 
     if uploaded_file:
         file_type = uploaded_file.type
-
         if file_type in ["image/jpeg", "image/png", "image/jpg"]:
             image = Image.open(uploaded_file)
             st.image(image, caption="Uploaded Image", use_column_width=True)
@@ -150,7 +135,6 @@ with left_column:
         st.markdown("### 📝 Extracted Text")
         st.text_area("Extracted Text", extracted_text, height=250)
 
-# ✅ Right Column: Quiz Generation
 with right_column:
     if uploaded_file:
         st.markdown("### 🎯 Generate Quiz")
@@ -166,20 +150,17 @@ with right_column:
                         st.error("Failed to generate a valid quiz. Please try again.")
                     else:
                         st.session_state.quiz_data = quiz_data
-                        st.session_state.user_answers = {}  # Reset answers on new quiz
-                        st.session_state.quiz_submitted = False  # Reset submission state
+                        st.session_state.user_answers = {}
+                        st.session_state.quiz_submitted = False
                         st.success("✅ Quiz generated successfully! Scroll down to answer.")
                 except Exception as e:
                     st.error(f"An error occurred: {e}")
 
         if st.session_state.quiz_data:
             st.markdown("### 📝 Answer the Quiz")
-
             for i, question_data in enumerate(st.session_state.quiz_data):
                 question_text = re.sub(r"^(Question\s*\d+:?)\s*", "", question_data['question']).strip()
                 st.markdown(f"**Question {i+1}: {question_text}**")
-
-                # Use session state for storing answers persistently
                 selected_option = st.radio(
                     f"Select an answer for Question {i+1}:",
                     question_data['options'],
@@ -188,17 +169,20 @@ with right_column:
                 )
                 st.session_state.user_answers[i] = selected_option
 
-            # ✅ Submit button to show results
             if st.button("Submit Answers"):
-                st.session_state.quiz_submitted = True  # Mark quiz as submitted
+                st.session_state.quiz_submitted = True
 
-        # ✅ Display Quiz Results if submitted
         if st.session_state.quiz_submitted:
             correct_count = sum(
                 1 for i, q in enumerate(st.session_state.quiz_data) if st.session_state.user_answers[i] == q['correct_answer']
             )
             st.markdown(f"### 🎯 Your Score: **{correct_count}/{len(st.session_state.quiz_data)}**")
 
-# ✅ Footer
 st.markdown("---")
 st.markdown("Developed with ❤️ by **Fiftheye Eduvision**")
+
+# ✅ **Railway Deployment Fix: Run Streamlit properly inside Docker**
+if __name__ == "__main__":
+    PORT = int(os.getenv("PORT", 8501))
+    CMD = f"streamlit run {__file__} --server.port {PORT} --server.address 0.0.0.0"
+    os.system(CMD)
