@@ -12,6 +12,23 @@ import pytesseract
 # Manually set the Tesseract OCR path (common location on Linux/Streamlit Cloud)
 pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
+import pdf2image
+
+# Manually set the Poppler path for Streamlit Cloud
+POPPLER_PATH = "/usr/bin/poppler"
+if not os.path.exists(POPPLER_PATH):
+    POPPLER_PATH = "/usr/local/bin/poppler"
+
+def extract_text_from_pdf(pdf_file):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+        temp_pdf.write(pdf_file.read())
+        temp_pdf_path = temp_pdf.name
+
+    images = pdf2image.convert_from_path(temp_pdf_path, poppler_path=POPPLER_PATH)
+    extracted_text = "".join(pytesseract.image_to_string(img) for img in images)
+    
+    os.remove(temp_pdf_path)
+    return extracted_text
 
 # Load Google API key from environment variable
 load_dotenv()
