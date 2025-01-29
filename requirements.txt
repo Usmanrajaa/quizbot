@@ -1,13 +1,6 @@
 streamlit
-google-generativeai
-python-dotenv
-langchain
-PyPDF2
-chromadb
-faiss-cpu
-langchain_google_genai
-langchain
 pytesseract
 pdf2image
-poppler-utils
-# transformers
+Pillow
+python-dotenv
+google-generativeai
