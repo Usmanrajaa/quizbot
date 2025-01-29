@@ -23,12 +23,13 @@ genai.configure(api_key=GOOGLE_API_KEY)
 # ✅ Auto-detect Tesseract & Poppler paths
 if platform.system() == "Windows":
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    POPPLER_PATH = shutil.which("pdftoppm") or r"C:\poppler-24.08.0\Library\bin"
+    POPPLER_PATH = r"C:\poppler-24.08.0\Library\bin"
 else:  # Linux (Streamlit Cloud)
     pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or "/usr/bin/tesseract"
     POPPLER_PATH = shutil.which("pdftoppm") or "/usr/bin"
 
-if not POPPLER_PATH:
+# ✅ Check if Poppler is properly installed
+if not POPPLER_PATH or not os.path.exists(POPPLER_PATH):
     st.error("⚠️ Poppler is not installed or not in PATH! Install Poppler and restart.")
     st.stop()
 
