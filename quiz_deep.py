@@ -7,10 +7,6 @@ import os
 from dotenv import load_dotenv
 import tempfile
 import re  
-import pytesseract
-
-# Specify the Tesseract path explicitly
-pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
 # Load Google API key from environment variable
 load_dotenv()
@@ -26,7 +22,7 @@ def extract_text_from_pdf(pdf_file):
         temp_pdf.write(pdf_file.read())
         temp_pdf_path = temp_pdf.name
 
-    images = convert_from_path(temp_pdf_path)  # No poppler path needed
+    images = convert_from_path(temp_pdf_path)
     extracted_text = "".join(pytesseract.image_to_string(img) for img in images)
     
     os.remove(temp_pdf_path)
