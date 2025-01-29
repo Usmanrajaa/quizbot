@@ -4,11 +4,13 @@ from pdf2image import convert_from_path
 from PIL import Image
 import google.generativeai as genai
 import os
-from dotenv import load_dotenv
 import tempfile
-import re  
+import re
+from dotenv import load_dotenv
+import platform
+import shutil
 
-# ✅ Load Google API Key from .env file
+# ✅ Load API Key from .env file
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
@@ -18,21 +20,23 @@ if not GOOGLE_API_KEY:
 
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# ✅ Set paths dynamically for Windows & Linux (Streamlit Cloud)
-if os.name == "nt":  # Windows
-    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    POPPLER_PATH = r"C:\poppler-24.08.0\Library\bin"
-else:  # Linux / Streamlit Cloud
-    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-    POPPLER_PATH = "/usr/bin"
-    if not os.path.exists(os.path.join(POPPLER_PATH, "pdftoppm")):
-        POPPLER_PATH = "/usr/local/bin"
+# ✅ Auto-detect Tesseract & Poppler paths
+if platform.system() == "Windows":
+    pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    POPPLER_PATH = shutil.which("pdftoppm") or r"C:\poppler-24.08.0\Library\bin"
+else:  # Linux (Streamlit Cloud)
+    pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract") or "/usr/bin/tesseract"
+    POPPLER_PATH = shutil.which("pdftoppm") or "/usr/bin"
 
-# ✅ Function to extract text from images using OCR
+if not POPPLER_PATH:
+    st.error("⚠️ Poppler is not installed or not in PATH! Install Poppler and restart.")
+    st.stop()
+
+# ✅ Function to extract text from images
 def extract_text_from_image(image):
     return pytesseract.image_to_string(image)
 
-# ✅ Function to extract text from PDFs using OCR (page by page)
+# ✅ Function to extract text from PDFs
 def extract_text_from_pdf(pdf_file):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
         temp_pdf.write(pdf_file.read())
@@ -40,15 +44,16 @@ def extract_text_from_pdf(pdf_file):
 
     try:
         images = convert_from_path(temp_pdf_path, poppler_path=POPPLER_PATH)
-        extracted_text = "".join(pytesseract.image_to_string(img) for img in images)
+        extracted_text = "\n".join(pytesseract.image_to_string(img) for img in images)
     except Exception as e:
+        os.remove(temp_pdf_path)
         st.error(f"Error processing PDF: {e}")
         return ""
 
     os.remove(temp_pdf_path)
-    return extracted_text
+    return extracted_text.strip()
 
-# ✅ Function to use Gemini AI model for quiz generation
+# ✅ Function to generate a quiz using Google Gemini
 def generate_quiz(text, num_questions=5):
     prompt = f"""
     Generate {num_questions} multiple-choice questions (MCQs) based on the following text.
