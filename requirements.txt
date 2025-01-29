@@ -9,4 +9,5 @@ langchain_google_genai
 langchain
 pytesseract
 pdf2image
+poppler-utils
 # transformers
