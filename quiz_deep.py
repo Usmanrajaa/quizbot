@@ -1,47 +1,33 @@
-import os
 import streamlit as st
-import subprocess
 import pytesseract
 from pdf2image import convert_from_path
 from PIL import Image
 import google.generativeai as genai
-from dotenv import load_dotenv
+import os
 import tempfile
 import re
+from dotenv import load_dotenv
 
-# ✅ Install Poppler if missing (For Streamlit Cloud)
-def install_poppler():
-    try:
-        subprocess.run(["apt-get", "update"], check=True)
-        subprocess.run(["apt-get", "install", "-y", "poppler-utils"], check=True)
-    except subprocess.CalledProcessError as e:
-        st.error(f"Error installing Poppler: {e}")
-
-install_poppler()  # Ensure Poppler is installed
-
-# ✅ Set Paths for Poppler and Tesseract
-POPPLER_PATH = "/usr/bin/"
-TESSERACT_PATH = "/usr/bin/tesseract"
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
-
-# ✅ Load Google API key from environment variable
+# ✅ Load API Key from .env file
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+# ✅ Check if Google API Key is set
 if not GOOGLE_API_KEY:
-    st.error("Google API key not found. Make sure to set it in the environment variables.")
+    st.error("Google API key not found. Set it in the .env file.")
     st.stop()
 
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# ✅ Function to extract text from images using OCR
-def extract_text_from_image(image):
-    try:
-        return pytesseract.image_to_string(image)
-    except Exception as e:
-        st.error(f"OCR Error: {e}")
-        return ""
+# ✅ Set paths manually for Windows
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+POPPLER_PATH = r"C:\poppler-24.08.0\Library\bin"
 
-# ✅ Function to extract text from PDFs using OCR
+# ✅ Function to extract text from images
+def extract_text_from_image(image):
+    return pytesseract.image_to_string(image)
+
+# ✅ Function to extract text from PDFs
 def extract_text_from_pdf(pdf_file):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
         temp_pdf.write(pdf_file.read())
@@ -49,42 +35,38 @@ def extract_text_from_pdf(pdf_file):
 
     try:
         images = convert_from_path(temp_pdf_path, poppler_path=POPPLER_PATH)
-        extracted_text = "".join(pytesseract.image_to_string(img) for img in images)
     except Exception as e:
-        st.error(f"PDF OCR Error: {e}")
-        extracted_text = ""
-    
+        os.remove(temp_pdf_path)
+        st.error(f"Error processing PDF: {e}")
+        st.stop()
+
+    extracted_text = "".join(pytesseract.image_to_string(img) for img in images)
     os.remove(temp_pdf_path)
     return extracted_text
 
-# ✅ Function to use Gemini model for quiz generation
+# ✅ Function to generate a quiz using Google Gemini
 def generate_quiz(text, num_questions=5):
     prompt = f"""
-    Generate {num_questions} multiple-choice questions (MCQs) based on the following text. Each question should have exactly 4 options and a correct answer.
+    Generate {num_questions} multiple-choice questions (MCQs) based on the following text.
+    Each question should have 4 options and a correct answer.
 
-    Text:
+    **Text:**
     {text}
 
-    Format the output as follows:
-    1. [Question]
-    a) [Option 1]
-    b) [Option 2]
-    c) [Option 3]
-    d) [Option 4]
-    Correct Answer: [Correct option]
-
-    Continue for all {num_questions} questions.
+    **Format Output Like This:**
+    1: Question text
+      a) Option 1
+      b) Option 2
+      c) Option 3
+      d) Option 4
+    Correct Answer: Option X
     """
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        st.error(f"AI Quiz Generation Error: {e}")
-        return ""
 
-# ✅ Function to format the quiz properly
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    response = model.generate_content(prompt)
+    return response.text
+
+# ✅ Function to format quiz
 def format_quiz(quiz_text):
     questions = quiz_text.strip().split("\n\n")
     quiz_data = []
@@ -112,19 +94,18 @@ def format_quiz(quiz_text):
 # ✅ Streamlit UI
 st.set_page_config(page_title="Quiz Generator", layout="wide")
 st.title("📝 Quiz Generator")
-st.markdown("Upload an image or PDF, and we'll generate a **structured quiz** for you!")
+st.markdown("Upload an **image or PDF**, and we'll generate a **structured quiz** for you!")
 
-# ✅ Initialize session state for quiz data
 if "quiz_data" not in st.session_state:
     st.session_state.quiz_data = None
 if "user_answers" not in st.session_state:
     st.session_state.user_answers = {}
 if "quiz_submitted" not in st.session_state:
-    st.session_state.quiz_submitted = False  # Track submission status
+    st.session_state.quiz_submitted = False  
 
+# ✅ UI Layout
 left_column, right_column = st.columns([1, 2])
 
-# ✅ Left Column: File Upload and Extracted Text
 with left_column:
     st.markdown("### 📂 Upload File")
     uploaded_file = st.file_uploader("Choose an image or PDF file...", type=["jpg", "jpeg", "png", "pdf"])
@@ -142,7 +123,6 @@ with left_column:
         st.markdown("### 📝 Extracted Text")
         st.text_area("Extracted Text", extracted_text, height=250)
 
-# ✅ Right Column: Quiz Generation
 with right_column:
     if uploaded_file:
         st.markdown("### 🎯 Generate Quiz")
@@ -153,13 +133,13 @@ with right_column:
                 try:
                     quiz_text = generate_quiz(extracted_text, num_questions)
                     quiz_data = format_quiz(quiz_text)
-                    
+
                     if not quiz_data:
                         st.error("Failed to generate a valid quiz. Please try again.")
                     else:
                         st.session_state.quiz_data = quiz_data
-                        st.session_state.user_answers = {}  # Reset answers on new quiz
-                        st.session_state.quiz_submitted = False  # Reset submission state
+                        st.session_state.user_answers = {}
+                        st.session_state.quiz_submitted = False  
                         st.success("✅ Quiz generated successfully! Scroll down to answer.")
                 except Exception as e:
                     st.error(f"An error occurred: {e}")
@@ -171,7 +151,6 @@ with right_column:
                 question_text = re.sub(r"^(Question\s*\d+:?)\s*", "", question_data['question']).strip()
                 st.markdown(f"**Question {i+1}: {question_text}**")
 
-                # Use session state for storing answers persistently
                 selected_option = st.radio(
                     f"Select an answer for Question {i+1}:",
                     question_data['options'],
@@ -180,14 +159,26 @@ with right_column:
                 )
                 st.session_state.user_answers[i] = selected_option
 
-            # ✅ Submit button to show results
             if st.button("Submit Answers"):
-                st.session_state.quiz_submitted = True  # Mark quiz as submitted
+                st.session_state.quiz_submitted = True  
 
-        # ✅ Display Quiz Results if submitted
         if st.session_state.quiz_submitted:
-            correct_count = sum(1 for i, q in enumerate(st.session_state.quiz_data) if st.session_state.user_answers[i] == q['correct_answer'])
-            st.markdown(f"**🎯 Total Score: {correct_count}/{len(st.session_state.quiz_data)}**")
+            correct_count = 0
+            results = []
+            for i, question_data in enumerate(st.session_state.quiz_data):
+                user_answer = st.session_state.user_answers.get(i, None)
+                correct_answer = question_data['correct_answer']
+
+                if user_answer == correct_answer:
+                    correct_count += 1
+                    results.append(f"✅ **Question {i+1}: Correct!**")
+                else:
+                    results.append(f"❌ **Question {i+1}: Incorrect.** Correct answer: **{correct_answer}**.")
+
+            st.markdown("### 📝 Quiz Results")
+            for result in results:
+                st.write(result)
+            st.write(f"**🎯 Total Score: {correct_count}/{len(st.session_state.quiz_data)}**")
 
 # ✅ Footer
 st.markdown("---")
