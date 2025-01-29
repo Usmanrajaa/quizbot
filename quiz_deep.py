@@ -1,51 +1,59 @@
+import os
 import streamlit as st
+import subprocess
 import pytesseract
 from pdf2image import convert_from_path
 from PIL import Image
 import google.generativeai as genai
-import os
 from dotenv import load_dotenv
 import tempfile
 import re
-import pytesseract
 
-# Manually set the Tesseract OCR path (common location on Linux/Streamlit Cloud)
-pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+# Ensure Poppler and Tesseract are installed
+def install_dependencies():
+    try:
+        subprocess.run(["apt-get", "update"], check=True)
+        subprocess.run(["apt-get", "install", "-y", "poppler-utils", "tesseract-ocr"], check=True)
+    except subprocess.CalledProcessError as e:
+        st.error(f"Error installing dependencies: {e}")
 
-import pdf2image
+install_dependencies()  # Install Poppler and Tesseract
 
-# Manually set the Poppler path for Streamlit Cloud
+# Set Poppler and Tesseract paths
 POPPLER_PATH = "/usr/bin/poppler"
-if not os.path.exists(POPPLER_PATH):
-    POPPLER_PATH = "/usr/local/bin/poppler"
+TESSERACT_PATH = "/usr/bin/tesseract"
 
-def extract_text_from_pdf(pdf_file):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-        temp_pdf.write(pdf_file.read())
-        temp_pdf_path = temp_pdf.name
-
-    images = pdf2image.convert_from_path(temp_pdf_path, poppler_path=POPPLER_PATH)
-    extracted_text = "".join(pytesseract.image_to_string(img) for img in images)
-    
-    os.remove(temp_pdf_path)
-    return extracted_text
+pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 # Load Google API key from environment variable
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    st.error("Google API key not found. Make sure to set it in the environment variables.")
+    st.stop()
+
+genai.configure(api_key=GOOGLE_API_KEY)
 
 # Function to extract text from images using OCR
 def extract_text_from_image(image):
-    return pytesseract.image_to_string(image)
+    try:
+        return pytesseract.image_to_string(image)
+    except Exception as e:
+        st.error(f"OCR Error: {e}")
+        return ""
 
-# Function to extract text from PDFs using OCR (page by page)
+# Function to extract text from PDFs using OCR
 def extract_text_from_pdf(pdf_file):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
         temp_pdf.write(pdf_file.read())
         temp_pdf_path = temp_pdf.name
 
-    images = convert_from_path(temp_pdf_path)
-    extracted_text = "".join(pytesseract.image_to_string(img) for img in images)
+    try:
+        images = convert_from_path(temp_pdf_path, poppler_path=POPPLER_PATH)
+        extracted_text = "".join(pytesseract.image_to_string(img) for img in images)
+    except Exception as e:
+        st.error(f"PDF OCR Error: {e}")
+        extracted_text = ""
     
     os.remove(temp_pdf_path)
     return extracted_text
@@ -59,24 +67,29 @@ def generate_quiz(text, num_questions=5):
     {text}
 
     Format the output as follows:
-     1: [Text]
-      a) [Option 1]
-      b) [Option 2]
-      c) [Option 3]
-      d) [Option 4]
-      Correct Answer: [Correct option]
+    1. [Question]
+    a) [Option 1]
+    b) [Option 2]
+    c) [Option 3]
+    d) [Option 4]
+    Correct Answer: [Correct option]
 
     Continue for all {num_questions} questions.
     """
     model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content(prompt)
-    return response.text
+    
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        st.error(f"AI Quiz Generation Error: {e}")
+        return ""
 
 # Function to format the quiz properly
 def format_quiz(quiz_text):
     questions = quiz_text.strip().split("\n\n")
     quiz_data = []
-    
+
     for question in questions:
         lines = question.split("\n")
         if len(lines) < 3:
@@ -174,26 +187,8 @@ with right_column:
 
         # Display Quiz Results if submitted
         if st.session_state.quiz_submitted:
-            correct_count = 0
-            results = []
-            for i, question_data in enumerate(st.session_state.quiz_data):
-                user_answer = st.session_state.user_answers.get(i, None)
-                correct_answer = question_data['correct_answer']
-                
-                if user_answer == correct_answer:
-                    correct_count += 1
-                    results.append(f"✅ **Question {i+1}: Correct!**")
-                else:
-                    results.append(f"❌ **Question {i+1}: Incorrect.** The correct answer was **{correct_answer}**.")
-
-            st.markdown("### 📝 Quiz Results")
-            for result in results:
-                st.write(result)
-            st.write(f"**🎯 Total Score: {correct_count}/{len(st.session_state.quiz_data)}**")
-
-    else:
-        st.markdown("### 🎯 Generate Quiz")
-        st.info("Please upload a file to generate a quiz.")
+            correct_count = sum(1 for i, q in enumerate(st.session_state.quiz_data) if st.session_state.user_answers[i] == q['correct_answer'])
+            st.markdown(f"**🎯 Total Score: {correct_count}/{len(st.session_state.quiz_data)}**")
 
 # Footer
 st.markdown("---")
